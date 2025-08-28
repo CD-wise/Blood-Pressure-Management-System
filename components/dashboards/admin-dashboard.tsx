@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Shield, Users, Activity, Settings, Search, LogOut, User, Plus, BarChart3 } from "lucide-react"
+import { Shield, Users, Activity, Settings, Search, LogOut, User, Plus, BarChart3, UserPlus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import UserProfileForm from "@/components/forms/user-profile-form"
+import AssignPatientForm from "@/components/forms/assign-patient-form"
 
 interface AdminDashboardProps {
   user: any
@@ -22,6 +24,10 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [isLoading, setIsLoading] = useState(true)
+  const [showUserForm, setShowUserForm] = useState(false)
+  const [showAssignForm, setShowAssignForm] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [formMode, setFormMode] = useState<"add" | "edit">("add")
   const router = useRouter()
   const supabase = createClient()
 
@@ -31,10 +37,8 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
 
   const fetchAdminData = async () => {
     try {
-      // Get all user profiles
       const { data: profiles } = await supabase.from("profiles").select("*").order("created_at", { ascending: false })
 
-      // Get total readings count
       const { count: readingsCount } = await supabase
         .from("blood_pressure_readings")
         .select("*", { count: "exact", head: true })
@@ -42,7 +46,6 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
       if (profiles) {
         setUsers(profiles)
 
-        // Calculate stats
         const totalUsers = profiles.length
         const patients = profiles.filter((p) => p.role === "patient").length
         const doctors = profiles.filter((p) => p.role === "doctor").length
@@ -66,6 +69,29 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push("/")
+  }
+
+  const handleEditUser = (user: any) => {
+    setSelectedUser(user)
+    setFormMode("edit")
+    setShowUserForm(true)
+  }
+
+  const handleViewUser = (user: any) => {
+    // For now, just show edit form in view mode - could be enhanced with read-only view
+    setSelectedUser(user)
+    setFormMode("edit")
+    setShowUserForm(true)
+  }
+
+  const handleAddUser = () => {
+    setSelectedUser(null)
+    setFormMode("add")
+    setShowUserForm(true)
+  }
+
+  const handleFormSuccess = () => {
+    fetchAdminData() // Refresh the data
   }
 
   const filteredUsers = users.filter((user) => {
@@ -215,7 +241,11 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
                     <SelectItem value="admin">Admins</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button>
+                <Button onClick={() => setShowAssignForm(true)} variant="outline">
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Assign Patient
+                </Button>
+                <Button onClick={handleAddUser}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add User
                 </Button>
@@ -244,7 +274,7 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
                         <h3 className="font-medium">
                           {user.first_name} {user.last_name}
                         </h3>
-                        <p className="text-sm text-muted-foreground">{user.phone}</p>
+                        <p className="text-sm text-muted-foreground">{user.email || user.phone}</p>
                       </div>
                     </div>
 
@@ -259,10 +289,20 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
                       </div>
 
                       <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="bg-transparent">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-transparent"
+                          onClick={() => handleEditUser(user)}
+                        >
                           Edit
                         </Button>
-                        <Button variant="outline" size="sm" className="bg-transparent">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-transparent"
+                          onClick={() => handleViewUser(user)}
+                        >
                           View
                         </Button>
                       </div>
@@ -284,6 +324,23 @@ export default function AdminDashboard({ user, profile }: AdminDashboardProps) {
           </CardContent>
         </Card>
       </div>
+
+      {showUserForm && (
+        <UserProfileForm
+          user={selectedUser}
+          mode={formMode}
+          onClose={() => setShowUserForm(false)}
+          onSuccess={handleFormSuccess}
+        />
+      )}
+
+      {showAssignForm && (
+        <AssignPatientForm
+          currentUserId={user.id}
+          onClose={() => setShowAssignForm(false)}
+          onSuccess={handleFormSuccess}
+        />
+      )}
     </div>
   )
 }
